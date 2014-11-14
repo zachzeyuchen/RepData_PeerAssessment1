@@ -1,25 +1,83 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Activity Mornitoring Data Analysis"
+author: "Zeyu Chen"
+date: "November 8, 2014"
+output: html_document
 ---
 
+This R markdown document is used to process and analyze the actibity mornitoring data.
+opts_chunk$set(echo=TRUE)
+###Loading and preprocessing the data.
+```{r}
+act<-read.csv('activity.csv')
+#Clean up the data by convert fators to dates
+act$date<-as.Date(act$date)
+```
 
-## Loading and preprocessing the data
+###What is mean total number of steps taken per day?
+```{r}
+#Make a histogram of the total number of steps taken each day
+library(ggplot2)
+qplot(x=date,y=steps,data=subset(act,complete.cases(act)),stat='summary',fun.y=sum, geom="bar")+xlab("Date")+ylab("Steps")+ggtitle("Steps Taken Each Day")
 
+#Calculate and report the mean and median total number of steps taken per day
+x<-subset(act,complete.cases(act))
+steps_per_day<-tapply(x$steps,x$date,sum)
+mean<-mean(steps_per_day)
+median<-median(steps_per_day)
+```
+The mean of total steps per day is `r format(mean,digits=1)` and the median is `r format(median,digits=1)`.
 
+###What is the average daily activity pattern?
+```{r}
+#Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+interval_steps<-tapply(act$steps,act$interval,mean,na.rm=TRUE)
+plot_data<-data.frame(as.numeric(names(interval_steps)),interval_steps)
+colnames(plot_data)<-c('intervals','steps')
+qplot(intervals,steps,data=plot_data,geom='line')+labs(x='5-min Intervals',y='Average Steps')
 
-## What is mean total number of steps taken per day?
+index <- which.max(interval_steps)
+interval <- names(index)
+maxSteps <- interval_steps[104]
+```
+Interval `r interval` on average contains the maximum number of steps, which is `r maxSteps`.
 
+###Imputing missing values
+```{r}
+#Calculate and report the total number of missing values in the dataset
+NAs<-sum(is.na(act))
+```
 
+The total number of missing values in the data set is `r NAs`.
 
-## What is the average daily activity pattern?
+```{r}
+#Use the avearge from the 5-min interval to impute missing values
+for (i in 1:nrow(act)){
+    if(is.na(act[i,1])){
+        act[i,1]<-interval_steps[as.character((act[i,3]))]
+    }
+}
+#Prview the imputed data
+head(act)
+#Plot the data again
+qplot(x=date,y=steps,data=act,stat='summary',fun.y=sum, geom="bar")+xlab("Date")+ylab("Steps")+ggtitle("Steps Taken Each Day (NAs imputed)")
 
+#Calculate and report the mean and median total number of steps taken per day
+steps_per_day_1<-tapply(act$steps,act$date,sum)
+mean1<-mean(steps_per_day_1)
+median1<-median(steps_per_day_1)
+```
 
+Both mean and median are `r format(mean1,digits=1)` after imputing the NAs. So there is not a significant difference compares to mean and median by ommiting NAs, which were `r format(mean,digits=1)` and `r format(median,digits=1)`.  
 
-## Imputing missing values
+###Are there differences in activity patterns between weekdays and weekends?
+```{r}
+library(dplyr)
+act$day<-factor(weekdays(act$date))
+levels(act$day)<-list(weekday = c("Monday", "Tuesday", "Wednesday", "Thursday",    "Friday"), weekend=c("Saturday", "Sunday"))
+by_day_interval<-group_by(act,day,interval)
+result<-summarize(by_day_interval,mean(steps))
+names(result)[3]<-'steps'
+qplot(interval,steps,data=result,facets=.~day,geom='line',color=day)+labs(y='Average Steps', x='5-min Intervals')
 
-
-
-## Are there differences in activity patterns between weekdays and weekends?
+```
